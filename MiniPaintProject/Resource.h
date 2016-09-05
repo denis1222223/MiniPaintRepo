@@ -10,6 +10,10 @@
 #define IDD_ABOUTBOX			103
 #define IDM_ABOUT				104
 #define IDM_EXIT				105
+#define ID_FILE_OPEN        1001
+#define ID_FILE_SAVE        1002
+#define ID_FILE_PRINT        1003
+#define ID_EDIT_UNDO       1004
 #define IDI_MINIPAINTPROJECT			107
 #define IDI_SMALL				108
 #define IDC_MINIPAINTPROJECT			109
