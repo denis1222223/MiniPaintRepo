@@ -4,35 +4,50 @@
 #include <stdio.h>
 #include <string>
 #include "resource.h"
-
+#include "Figure.h"
+#include <list>
+#include <vector>
 using namespace std;
 
 HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 
-// menu / color dialog
-static HPEN hPen;
-static HBRUSH hBrush;
-static COLORREF  crCustColor[16];
-static HDC hCompatibleDC = 0;
-static HDC hBitmapDC = 0;
-static HDC hdc1;
-static int width = 0;
-
-
+//// menu / color dialog
+//static HPEN hPen;
+//static HBRUSH hBrush;
+//static COLORREF  crCustColor[16];
+//static HDC hCompatibleDC = 0;
+//static HDC hBitmapDC = 0;
+//static HDC hdc1;
+//static int width = 0;
+//
+//// line
+//HDC static hdc;
+//static int xBegin = 0, yBegin = 0;
+//static double scale;
+//static bool b, bText, flag, bPoly, bPolyline;
+//static int id;
+//RECT rect;
+//static HBITMAP hCompatibleBitmap, hBitmap;
+//static int f = 0;
+//TEXTMETRIC tm;
+//static string text;
+//static int cxChar, cyChar;
+//static int xT, yT;
+/////////////////////////
 
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
-	chooseColor.lStructSize = sizeof(CHOOSECOLOR);
-	chooseColor.hInstance = NULL;
-	chooseColor.hwndOwner = hWnd;
-	chooseColor.lpCustColors = crCustColor;
-	chooseColor.Flags = CC_RGBINIT | CC_FULLOPEN;
-	chooseColor.lCustData = 0L;
-	chooseColor.lpfnHook = NULL;
-	chooseColor.rgbResult = RGB(0x80, 0x80, 0x80);
-	chooseColor.lpTemplateName = NULL;
+	//chooseColor.lStructSize = sizeof(CHOOSECOLOR);
+	//chooseColor.hInstance = NULL;
+	//chooseColor.hwndOwner = hWnd;
+	//chooseColor.lpCustColors = crCustColor;
+	//chooseColor.Flags = CC_RGBINIT | CC_FULLOPEN;
+	//chooseColor.lCustData = 0L;
+	//chooseColor.lpfnHook = NULL;
+	//chooseColor.rgbResult = RGB(0x80, 0x80, 0x80);
+	//chooseColor.lpTemplateName = NULL;
 	return chooseColor;
 }
 
@@ -40,11 +55,11 @@ void OnChangePenColor(HWND hWnd) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
 	if (ChooseColor(&chooseColor))
 	{
-		DeleteObject(hPen);
-		hPen = CreatePen(PS_SOLID, width, chooseColor.rgbResult);
-		DeleteObject(SelectObject(hCompatibleDC, hPen));
-		DeleteObject(SelectObject(hBitmapDC, hPen));
-		DeleteObject(SelectObject(hdc1, hPen));
+		//DeleteObject(hPen);
+		//hPen = CreatePen(PS_SOLID, width, chooseColor.rgbResult);
+		//DeleteObject(SelectObject(hCompatibleDC, hPen));
+		//DeleteObject(SelectObject(hBitmapDC, hPen));
+		//DeleteObject(SelectObject(hdc1, hPen));
 	}
 }
 
@@ -52,24 +67,23 @@ void OnChangeFillColor(HWND hWnd) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
 	if (ChooseColor(&chooseColor))
 	{
-		DeleteObject(hBrush);
+	/*	DeleteObject(hBrush);
 		hBrush = CreateSolidBrush(chooseColor.rgbResult);
 		DeleteObject(SelectObject(hCompatibleDC, hBrush));
 		DeleteObject(SelectObject(hBitmapDC, hBrush));
-		DeleteObject(SelectObject(hdc1, hBrush));
+		DeleteObject(SelectObject(hdc1, hBrush));*/
 	}
 }
 
-void Line() {
-	id = ID_BUTTONLINE;
-	scale = 1;
-	xBegin = 0;
-	yBegin = 0;
-	bPoly = false;
-	bPolyline = false;
-	InvalidateRect(hWnd, NULL, FALSE);
-	break;
-}
+//void Line(HWND hWnd) {
+//	id = ID_INSTRUMENT_LINE;
+//	scale = 1;
+//	xBegin = 0;
+//	yBegin = 0;
+//	bPoly = false;
+//	bPolyline = false;
+//	InvalidateRect(hWnd, NULL, FALSE);
+//}
 
 // Aboutbox click handler.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -117,7 +131,6 @@ void OnMenuClick(HWND hWnd, WORD itemId) {
 		OnChangeFillColor(hWnd);
 		break;
 	case ID_INSTRUMENT_LINE:
-		Line();
 		break;
 	}
 }
@@ -144,8 +157,48 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  process messages in main window
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static HDC hdc;
+
+	/*static int x0, y0, x1, y1, x2, y2, oldMixMode;*/
 	switch (message)
 	{
+	case WM_CREATE:
+		ShowWindow(hWnd, SW_NORMAL);
+		hdc = GetDC(hWnd);
+		/*scale = 1;
+		GetClientRect(hWnd, &rect);
+		hdc1 = CreateEnhMetaFile(NULL, NULL, NULL, NULL);
+		flag = false;
+
+		hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+		SelectObject(hdc, hBrush);
+		hPen = (HPEN)GetStockObject(BLACK_PEN);
+		SelectObject(hdc1, hBrush);
+		SelectObject(hdc1, hPen);
+
+		width = 0;
+
+		hCompatibleDC = CreateCompatibleDC(hdc);
+		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		hBitmapDC = CreateCompatibleDC(hdc);
+		hBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+		DeleteObject(SelectObject(hCompatibleDC, (HBRUSH)WHITE_BRUSH));
+		PatBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, PATCOPY);
+		DeleteObject(SelectObject(hBitmapDC, hBitmap));
+		DeleteObject(SelectObject(hBitmapDC, (HBRUSH)WHITE_BRUSH));
+		PatBlt(hBitmapDC, 0, 0, rect.right, rect.bottom, PATCOPY);
+		DeleteObject(SelectObject(hCompatibleDC, hPen));
+		DeleteObject(SelectObject(hCompatibleDC, hBrush));
+		DeleteObject(SelectObject(hBitmapDC, hPen));
+		DeleteObject(SelectObject(hBitmapDC, hBrush));
+
+		SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
+		GetTextMetrics(hdc, &tm);
+		cxChar = tm.tmAveCharWidth;
+		cyChar = tm.tmHeight;
+*/
+		break;
 	case WM_COMMAND:
 	 	OnMenuClick(hWnd, LOWORD(wParam));
 		break;
@@ -154,9 +207,145 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
 		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
+
+		vector<Figure*> figures;
+		LineFigure line1;
+		line1.instrument = ID_INSTRUMENT_LINE;
+		POINT point1; point1.x = 23; point1.y = 23;
+		POINT point2; point2.x = 234; point2.y = 234;
+		line1.points.push_back(point1);
+		line1.points.push_back(point2);
+		figures.push_back(&line1);
+
+		for each(Figure* figure in figures) {
+			(*figure).draw(hdc);
+		}
+
 		EndPaint(hWnd, &ps);
+
+		break;
 	}
-	break;
+	case WM_MOUSEMOVE:
+	/*	GetClientRect(hWnd, &rect);
+		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+	    DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+		hCompatibleDC = CreateCompatibleDC(hdc);
+		if (b && id == ID_INSTRUMENT_LINE) {
+			x2 = (short)LOWORD(lParam);
+			y2 = (short)HIWORD(lParam);
+			MoveToEx(hCompatibleDC, x1, y1, NULL);
+			LineTo(hCompatibleDC, x2, y2);
+		}
+
+		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+		x2 = (short)LOWORD(lParam);
+		y2 = (short)HIWORD(lParam);
+		MoveToEx(hCompatibleDC, x1, y1, NULL);
+		LineTo(hCompatibleDC, x2, y2);
+
+		GetClientRect(hWnd, &rect);
+		if (b && (bPoly == false) && bText == false)
+		{
+			hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+			DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+			BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+			switch (id)
+			{
+			case ID_INSTRUMENT_LINE:
+				x2 = (short)LOWORD(lParam);
+				y2 = (short)HIWORD(lParam);
+				MoveToEx(hCompatibleDC, x1, y1, NULL);
+				LineTo(hCompatibleDC, x2, y2);
+				break;
+			}
+			f = 2;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+		}
+		if (b&&bPoly&&bText == false)
+		{
+			hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+			DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+			BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+			x2 = (short)LOWORD(lParam);
+			y2 = (short)HIWORD(lParam);
+			MoveToEx(hCompatibleDC, x1, y1, NULL);
+			LineTo(hCompatibleDC, x2, y2);
+			f = 2;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+		}
+		f=2;
+			  InvalidateRect(hWnd,NULL,FALSE);
+			  UpdateWindow(hWnd);*/
+		break;
+	case WM_LBUTTONDOWN:
+		//if (id == ID_BUTTONZOOM)
+		//	id = ID_BUTTONPAN;
+		//switch (id)
+		//{		
+		//case ID_INSTRUMENT_LINE:
+		//	x1 = x2 = (short)LOWORD(lParam);
+		//	y1 = y2 = (short)HIWORD(lParam);
+		//	MoveToEx(hdc, x1, y1, NULL);
+		//	if((id==ID_BUTTONLINE))
+		//		MoveToEx(hBitmapDC,x1,y1,NULL);
+		//	break;		
+		//}
+		//SetCapture(hWnd);
+		//b = true;
+		break;
+	case WM_LBUTTONUP:
+		/*ReleaseCapture();
+		if (bText)
+		{
+			xT = (short)LOWORD(lParam);
+			yT = (short)HIWORD(lParam);
+			text.clear();
+			b = false;
+			break;
+		}
+		GetClientRect(hWnd, &rect);
+		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+		if (b && (bPoly == false))
+		{
+			x2 = (short)LOWORD(lParam);
+			y2 = (short)HIWORD(lParam);
+			switch (id)
+			{
+			case ID_INSTRUMENT_LINE:
+				MoveToEx(hdc1, x1, y1, NULL);
+				LineTo(hdc1, x2, y2);
+				MoveToEx(hBitmapDC, x1, y1, NULL);
+				LineTo(hBitmapDC, x2, y2);
+				break;
+			}
+			f = 1;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+			b = false;
+		}
+		if (b&&bPoly)
+		{
+			MoveToEx(hdc1, x1, y1, NULL);
+			MoveToEx(hBitmapDC, x1, y1, NULL);
+			x2 = (short)LOWORD(lParam);
+			y2 = (short)HIWORD(lParam);
+			LineTo(hdc1, x2, y2);
+			LineTo(hBitmapDC, x2, y2);
+			x1 = x2;
+			y1 = y2;
+			b = false;
+			f = 1;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+		}*/
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
