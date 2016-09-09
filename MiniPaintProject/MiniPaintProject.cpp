@@ -75,16 +75,6 @@ void OnChangeFillColor(HWND hWnd) {
 	}
 }
 
-//void Line(HWND hWnd) {
-//	id = ID_INSTRUMENT_LINE;
-//	scale = 1;
-//	xBegin = 0;
-//	yBegin = 0;
-//	bPoly = false;
-//	bPolyline = false;
-//	InvalidateRect(hWnd, NULL, FALSE);
-//}
-
 void ClearHDC(HWND hWnd) {
 	RECT rect;
 	HDC hdc = GetDC(hWnd);
@@ -134,21 +124,23 @@ int OnMenuClick(HWND hWnd, WORD itemId) {
 	case ID_FILE_PRINT:
 		MessageBox(NULL, _T("print"), _T(""), NULL);
 		break;
-	case ID_EDIT_UNDO:
+	/*case ID_EDIT_UNDO:
 		MessageBox(NULL, _T("undo"), _T(""), NULL);
-		break; 
+		break; */
 	case ID_COLOR_PEN:
 		OnChangePenColor(hWnd);
 		break;
 	case ID_COLOR_FILL:
 		OnChangeFillColor(hWnd);
 		break;
-	case ID_INSTRUMENT_LINE:
-		return ID_INSTRUMENT_LINE;
-	case ID_INSTRUMENT_RECTANGLE:
-		return ID_INSTRUMENT_RECTANGLE;
-	case ID_INSTRUMENT_PENCIL:
-		return ID_INSTRUMENT_PENCIL;
+	//case ID_INSTRUMENT_LINE:
+	//	return ID_INSTRUMENT_LINE;
+	//case ID_INSTRUMENT_RECTANGLE:
+	//	return ID_INSTRUMENT_RECTANGLE;
+	//case ID_INSTRUMENT_PENCIL:
+	//	return ID_INSTRUMENT_PENCIL;
+	default:
+		return itemId;
 	}
 }
 
@@ -175,60 +167,33 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static HDC hdc;
-	bool paintNow = false;
-	int currentInstrument = ID_INSTRUMENT_PENCIL;
-	vector<Figure*> figures;
+	static bool paintNow = false;
+	static int currentInstrument;
+	static vector<Figure*> figures;
+	static POINT startPoint;
+	static Figure* currentFigure;
 
-
-	/*static int x0, y0, x1, y1, x2, y2, oldMixMode;*/
 	switch (message)
 	{
 	case WM_CREATE:
 		ShowWindow(hWnd, SW_NORMAL);
 		hdc = GetDC(hWnd);
-		/*scale = 1;
-		GetClientRect(hWnd, &rect);
-		hdc1 = CreateEnhMetaFile(NULL, NULL, NULL, NULL);
-		flag = false;
-
-		hBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-		SelectObject(hdc, hBrush);
-		hPen = (HPEN)GetStockObject(BLACK_PEN);
-		SelectObject(hdc1, hBrush);
-		SelectObject(hdc1, hPen);
-
-		width = 0;
-
-		hCompatibleDC = CreateCompatibleDC(hdc);
-		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-		hBitmapDC = CreateCompatibleDC(hdc);
-		hBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-		DeleteObject(SelectObject(hCompatibleDC, (HBRUSH)WHITE_BRUSH));
-		PatBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, PATCOPY);
-		DeleteObject(SelectObject(hBitmapDC, hBitmap));
-		DeleteObject(SelectObject(hBitmapDC, (HBRUSH)WHITE_BRUSH));
-		PatBlt(hBitmapDC, 0, 0, rect.right, rect.bottom, PATCOPY);
-		DeleteObject(SelectObject(hCompatibleDC, hPen));
-		DeleteObject(SelectObject(hCompatibleDC, hBrush));
-		DeleteObject(SelectObject(hBitmapDC, hPen));
-		DeleteObject(SelectObject(hBitmapDC, hBrush));
-
-		SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
-		GetTextMetrics(hdc, &tm);
-		cxChar = tm.tmAveCharWidth;
-		cyChar = tm.tmHeight;
-*/
 		break;
 	case WM_COMMAND:
 		currentInstrument = OnMenuClick(hWnd, LOWORD(wParam));
+		//undo is shit
+		if (currentInstrument == ID_EDIT_UNDO) {
+			figures.pop_back();
+			ClearHDC(hWnd);
+			DrawAllFigures(hdc, figures);
+		}
 		break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
 		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
-
+		EndPaint(hWnd, &ps);
 //		vector<Figure*> figures;
 //		POINT point1; POINT point2;
 //
@@ -262,161 +227,75 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //		}
 //*/
 //		DrawAllFigures(hdc, figures);
-		EndPaint(hWnd, &ps);
-
+		//EndPaint(hWnd, &ps);
+	//	DrawAllFigures(hdc, figures);
 		break;
 	}
 	case WM_MOUSEMOVE:
 		if (paintNow) {
+			POINT point;
+			point.x = (short)LOWORD(lParam);
+			point.y = (short)HIWORD(lParam);
+			ClearHDC(hWnd);
 			switch (currentInstrument)
 			{
 			case ID_INSTRUMENT_LINE:
-				ClearHDC(hWnd);
-				LineFigure* line = new LineFigure();
-				POINT point;
-				point.x = (short)LOWORD(lParam);
-				point.y = (short)HIWORD(lParam);
-				line->points.push_back(point);
-				line->points.push_back(point);
-				figures.push_back(line);
-				break;
-			case ID_INSTRUMENT_PENCIL:
-				break;
-			default:
+			case ID_INSTRUMENT_RECTANGLE:
+			case ID_INSTRUMENT_ELLIPSE:
+			case ID_INSTRUMENT_POLYGON:
+				if (currentFigure->points.size() > 1)
+					currentFigure->points.pop_back();			
 				break;
 			}
-			// clear all
-			// add current draw
+			currentFigure->points.push_back(point);
+			if (currentInstrument != 0) {
+				DrawAllFigures(hdc, figures);
+				currentFigure->draw(hdc);
+			}	
 		}
-	/*	GetClientRect(hWnd, &rect);
-		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-	    DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
-		hCompatibleDC = CreateCompatibleDC(hdc);
-		if (b && id == ID_INSTRUMENT_LINE) {
-			x2 = (short)LOWORD(lParam);
-			y2 = (short)HIWORD(lParam);
-			MoveToEx(hCompatibleDC, x1, y1, NULL);
-			LineTo(hCompatibleDC, x2, y2);
-		}
-
-		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
-		x2 = (short)LOWORD(lParam);
-		y2 = (short)HIWORD(lParam);
-		MoveToEx(hCompatibleDC, x1, y1, NULL);
-		LineTo(hCompatibleDC, x2, y2);
-
-		GetClientRect(hWnd, &rect);
-		if (b && (bPoly == false) && bText == false)
-		{
-			hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-			DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-			BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
-			switch (id)
-			{
-			case ID_INSTRUMENT_LINE:
-				x2 = (short)LOWORD(lParam);
-				y2 = (short)HIWORD(lParam);
-				MoveToEx(hCompatibleDC, x1, y1, NULL);
-				LineTo(hCompatibleDC, x2, y2);
-				break;
-			}
-			f = 2;
-			InvalidateRect(hWnd, NULL, FALSE);
-			UpdateWindow(hWnd);
-		}
-		if (b&&bPoly&&bText == false)
-		{
-			hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-			DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-			BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
-			x2 = (short)LOWORD(lParam);
-			y2 = (short)HIWORD(lParam);
-			MoveToEx(hCompatibleDC, x1, y1, NULL);
-			LineTo(hCompatibleDC, x2, y2);
-			f = 2;
-			InvalidateRect(hWnd, NULL, FALSE);
-			UpdateWindow(hWnd);
-		}
-		f=2;
-			  InvalidateRect(hWnd,NULL,FALSE);
-			  UpdateWindow(hWnd);*/
 		break;
 	case WM_LBUTTONDOWN:
 		paintNow = true;
-		switch (currentInstrument) {
-		case ID_INSTRUMENT_LINE:			
+		startPoint.x = (short)LOWORD(lParam);
+		startPoint.y = (short)HIWORD(lParam);
+		switch (currentInstrument)
+		{
+		case ID_INSTRUMENT_LINE:
+			currentFigure = new LineFigure();
 			break;
 		case ID_INSTRUMENT_PENCIL:
+			currentFigure = new PencilFigure();
 			break;
-		default:
+		case ID_INSTRUMENT_RECTANGLE:
+			currentFigure = new RectangleFigure();
+			break;
+		case ID_INSTRUMENT_ELLIPSE:
+			currentFigure = new EllipseFigure();
+			break;
+		case ID_INSTRUMENT_POLYGON:
+			if (currentFigure == NULL)
+				currentFigure = new PolygonFigure();			
 			break;
 		}
-		//if (id == ID_BUTTONZOOM)
-		//	id = ID_BUTTONPAN;
-		//switch (id)
-		//{		
-		//case ID_INSTRUMENT_LINE:
-		//	x1 = x2 = (short)LOWORD(lParam);
-		//	y1 = y2 = (short)HIWORD(lParam);
-		//	MoveToEx(hdc, x1, y1, NULL);
-		//	if((id==ID_BUTTONLINE))
-		//		MoveToEx(hBitmapDC,x1,y1,NULL);
-		//	break;		
-		//}
-		//SetCapture(hWnd);
-		//b = true;
+		if (currentInstrument != 0) {
+			currentFigure->points.push_back(startPoint);			
+		}
+		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
+			currentFigure->draw(hdc);
+		}
 		break;
 	case WM_LBUTTONUP:
 		paintNow = false;
-		/*ReleaseCapture();
-		if (bText)
-		{
-			xT = (short)LOWORD(lParam);
-			yT = (short)HIWORD(lParam);
-			text.clear();
-			b = false;
-			break;
+		if (currentInstrument != ID_INSTRUMENT_POLYGON) {
+			figures.push_back(currentFigure);
+			currentFigure = NULL;
+		}		
+		break;
+	case WM_LBUTTONDBLCLK:
+		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
+			figures.push_back(currentFigure);
+			currentFigure = NULL;
 		}
-		GetClientRect(hWnd, &rect);
-		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
-		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
-		if (b && (bPoly == false))
-		{
-			x2 = (short)LOWORD(lParam);
-			y2 = (short)HIWORD(lParam);
-			switch (id)
-			{
-			case ID_INSTRUMENT_LINE:
-				MoveToEx(hdc1, x1, y1, NULL);
-				LineTo(hdc1, x2, y2);
-				MoveToEx(hBitmapDC, x1, y1, NULL);
-				LineTo(hBitmapDC, x2, y2);
-				break;
-			}
-			f = 1;
-			InvalidateRect(hWnd, NULL, FALSE);
-			UpdateWindow(hWnd);
-			b = false;
-		}
-		if (b&&bPoly)
-		{
-			MoveToEx(hdc1, x1, y1, NULL);
-			MoveToEx(hBitmapDC, x1, y1, NULL);
-			x2 = (short)LOWORD(lParam);
-			y2 = (short)HIWORD(lParam);
-			LineTo(hdc1, x2, y2);
-			LineTo(hBitmapDC, x2, y2);
-			x1 = x2;
-			y1 = y2;
-			b = false;
-			f = 1;
-			InvalidateRect(hWnd, NULL, FALSE);
-			UpdateWindow(hWnd);
-		}*/
 		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -434,7 +313,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
 	wcex.cbSize = sizeof(WNDCLASSEX);
 
-	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
 	wcex.lpfnWndProc = WndProc;
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;

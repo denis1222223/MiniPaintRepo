@@ -41,3 +41,15 @@ public:
 		}
 	}
 };
+
+class EllipseFigure : public Figure {
+public:
+	void Figure::draw(HDC hdc)
+	{
+		Ellipse(hdc, points[0].x, points[0].y, points[1].x, points[1].y);
+	}
+};
+
+class PolygonFigure : public PencilFigure {
+
+};
