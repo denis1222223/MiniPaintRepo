@@ -85,6 +85,19 @@ void OnChangeFillColor(HWND hWnd) {
 //	InvalidateRect(hWnd, NULL, FALSE);
 //}
 
+void ClearHDC(HWND hWnd) {
+	RECT rect;
+	HDC hdc = GetDC(hWnd);
+	GetClientRect(hWnd, &rect);
+	FillRect(hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+}
+
+void DrawAllFigures(HDC hdc, vector<Figure*> figures) {
+	for each(Figure* figure in figures) {
+		(*figure).draw(hdc);
+	}
+}
+
 // Aboutbox click handler.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -104,7 +117,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void OnMenuClick(HWND hWnd, WORD itemId) {
+int OnMenuClick(HWND hWnd, WORD itemId) {
 	switch (itemId) {
 	case IDM_ABOUT:
 		DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -131,7 +144,11 @@ void OnMenuClick(HWND hWnd, WORD itemId) {
 		OnChangeFillColor(hWnd);
 		break;
 	case ID_INSTRUMENT_LINE:
-		break;
+		return ID_INSTRUMENT_LINE;
+	case ID_INSTRUMENT_RECTANGLE:
+		return ID_INSTRUMENT_RECTANGLE;
+	case ID_INSTRUMENT_PENCIL:
+		return ID_INSTRUMENT_PENCIL;
 	}
 }
 
@@ -158,6 +175,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static HDC hdc;
+	bool paintNow = false;
+	int currentInstrument = ID_INSTRUMENT_PENCIL;
+	vector<Figure*> figures;
+
 
 	/*static int x0, y0, x1, y1, x2, y2, oldMixMode;*/
 	switch (message)
@@ -200,7 +221,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 */
 		break;
 	case WM_COMMAND:
-	 	OnMenuClick(hWnd, LOWORD(wParam));
+		currentInstrument = OnMenuClick(hWnd, LOWORD(wParam));
 		break;
 	case WM_PAINT:
 	{
@@ -208,24 +229,65 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		HDC hdc = BeginPaint(hWnd, &ps);
 		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
 
-		vector<Figure*> figures;
-		LineFigure line1;
-		line1.instrument = ID_INSTRUMENT_LINE;
-		POINT point1; point1.x = 23; point1.y = 23;
-		POINT point2; point2.x = 234; point2.y = 234;
-		line1.points.push_back(point1);
-		line1.points.push_back(point2);
-		figures.push_back(&line1);
-
-		for each(Figure* figure in figures) {
-			(*figure).draw(hdc);
-		}
-
+//		vector<Figure*> figures;
+//		POINT point1; POINT point2;
+//
+//		RectangleFigure rect1;
+//		point1.x = 23; point1.y = 23;
+//		point2.x = 234; point2.y = 234;
+//		rect1.points.push_back(point1);
+//		rect1.points.push_back(point2);
+//		figures.push_back(&rect1);
+//
+//		LineFigure line1;
+//		point1.x = 23; point1.y = 23;
+//		point2.x = 234; point2.y = 234;
+//		line1.points.push_back(point1);
+//		line1.points.push_back(point2);
+//		figures.push_back(&line1);
+//
+//		PencilFigure pencil1;
+//		point1.x = 23; point1.y = 23;
+//		point2.x = 122; point2.y = 122;
+//		POINT point3; point3.x = 122; point3.y = 322;
+//		POINT point4; point4.x = 345; point4.y = 122;	
+//		pencil1.points.push_back(point1);
+//		pencil1.points.push_back(point2);
+//		pencil1.points.push_back(point3);
+//		pencil1.points.push_back(point4);
+//		figures.push_back(&pencil1);
+//
+//		/*for each(Figure* figure in figures) {
+//			(*figure).draw(hdc);
+//		}
+//*/
+//		DrawAllFigures(hdc, figures);
 		EndPaint(hWnd, &ps);
 
 		break;
 	}
 	case WM_MOUSEMOVE:
+		if (paintNow) {
+			switch (currentInstrument)
+			{
+			case ID_INSTRUMENT_LINE:
+				ClearHDC(hWnd);
+				LineFigure* line = new LineFigure();
+				POINT point;
+				point.x = (short)LOWORD(lParam);
+				point.y = (short)HIWORD(lParam);
+				line->points.push_back(point);
+				line->points.push_back(point);
+				figures.push_back(line);
+				break;
+			case ID_INSTRUMENT_PENCIL:
+				break;
+			default:
+				break;
+			}
+			// clear all
+			// add current draw
+		}
 	/*	GetClientRect(hWnd, &rect);
 		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 	    DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
@@ -283,6 +345,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			  UpdateWindow(hWnd);*/
 		break;
 	case WM_LBUTTONDOWN:
+		paintNow = true;
+		switch (currentInstrument) {
+		case ID_INSTRUMENT_LINE:			
+			break;
+		case ID_INSTRUMENT_PENCIL:
+			break;
+		default:
+			break;
+		}
 		//if (id == ID_BUTTONZOOM)
 		//	id = ID_BUTTONPAN;
 		//switch (id)
@@ -299,6 +370,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//b = true;
 		break;
 	case WM_LBUTTONUP:
+		paintNow = false;
 		/*ReleaseCapture();
 		if (bText)
 		{

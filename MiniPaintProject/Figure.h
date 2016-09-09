@@ -9,17 +9,12 @@ using namespace std;
 class Figure
 {
 public:
-	int instrument;
 	vector<POINT> points;
 	void virtual draw (HDC hdc) = 0;
 };
 
 class LineFigure : public Figure {
 public: 
-	LineFigure() {
-		instrument = ID_INSTRUMENT_LINE;
-	};
-
 	void Figure::draw(HDC hdc) 
 	{
 		MoveToEx(hdc, points[0].x, points[0].y, NULL);
@@ -27,14 +22,22 @@ public:
 	}
 };
 
-class RectangleFigure : Figure {
+class RectangleFigure : public Figure {
 public:
-	RectangleFigure() {
-		instrument = ID_INSTRUMENT_RECTANGLE;
-	};
-
 	void Figure::draw(HDC hdc)
 	{
 		Rectangle(hdc, points[0].x, points[0].y, points[1].x, points[1].y);
+	}
+};
+
+class PencilFigure : public Figure {
+public:
+	void Figure::draw(HDC hdc)
+	{
+		MoveToEx(hdc, points[0].x, points[0].y, NULL);
+		for each(POINT point in points) {
+			LineTo(hdc, point.x, point.y);
+			MoveToEx(hdc, point.x, point.y, NULL);
+		}
 	}
 };
