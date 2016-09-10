@@ -61,3 +61,12 @@ public:
 class PolygonFigure : public PencilFigure {
 
 };
+
+class TextFigure : public Figure {
+public:
+	string text;
+	void Figure::draw(HDC &hdc) 
+	{	
+		TextOutA(hdc, points[0].x, points[0].y, text.c_str(), strlen(text.c_str()));
+	}
+};

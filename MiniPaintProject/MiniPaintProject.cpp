@@ -9,11 +9,9 @@
 #include <vector>
 using namespace std;
 
-HINSTANCE hInst;                                // текущий экземпляр
-WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
-WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
-
-
+HINSTANCE hInst;                               
+WCHAR szTitle[MAX_LOADSTRING];                  
+WCHAR szWindowClass[MAX_LOADSTRING];           
 
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
@@ -32,7 +30,8 @@ CHOOSECOLOR GetColorDialog(HWND hWnd) {
 
 void OnChangePenColor(HWND hWnd, HPEN &hPen, HDC hdc, int &width, COLORREF &penColor) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
-	if (ChooseColor(&chooseColor)) {
+	if (ChooseColor(&chooseColor)) 
+	{
 		penColor = chooseColor.rgbResult;
 	}
 	hPen = CreatePen(PS_SOLID, width, penColor);
@@ -132,6 +131,7 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 	case ID_INSTRUMENT_PENCIL:
 	case ID_INSTRUMENT_ELLIPSE:
 	case ID_INSTRUMENT_POLYGON:
+	case ID_INSTRUMENT_TEXT:
 		currentInstrument = itemId;
 		break;
 	case ID_WIDTH_1:
@@ -190,7 +190,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
-		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
 		EndPaint(hWnd, &ps);
 		break;
 	}
@@ -239,6 +238,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (currentFigure == NULL)
 				currentFigure = new PolygonFigure();			
 			break;
+		case ID_INSTRUMENT_TEXT:	
+			paintNow = false;
+			currentFigure = new TextFigure();
+			break;
 		}
 		currentFigure->points.push_back(startPoint);			
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
@@ -247,7 +250,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_LBUTTONUP:
 		paintNow = false;
-		if (currentInstrument != ID_INSTRUMENT_POLYGON) {
+		if ((currentInstrument != ID_INSTRUMENT_POLYGON) && (currentInstrument != ID_INSTRUMENT_TEXT)) {
 			currentFigure->hPen = hPen;
 			currentFigure->hBrush = hBrush;
 			figures.push_back(currentFigure);
@@ -259,6 +262,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure->hPen = hPen;
 			figures.push_back(currentFigure);
 			currentFigure = NULL;
+		}
+		break;
+	case  WM_CHAR:
+		if ((currentInstrument == ID_INSTRUMENT_TEXT) && (!currentFigure->points.empty()))
+		{
+			char c = (char)wParam;
+			if (c == VK_RETURN) {
+				figures.push_back(currentFigure);
+				break;
+			}			
+			((TextFigure*)currentFigure)->text += c;
+			currentFigure->draw(hdc);
 		}
 		break;
 	case WM_DESTROY:
@@ -300,14 +315,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: разместите код здесь.
-
-    // Инициализация глобальных строк
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_MINIPAINTPROJECT, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
-    // Выполнить инициализацию приложения:
+    // Execute application initialization:
     if (!InitInstance (hInstance, nCmdShow))
     {
         return FALSE;
@@ -317,7 +329,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
-    // Цикл основного сообщения:
+    // main message cycle:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
