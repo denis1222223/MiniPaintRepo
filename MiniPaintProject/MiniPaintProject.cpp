@@ -30,13 +30,13 @@ CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	return chooseColor;
 }
 
-void OnChangePenColor(HWND hWnd, HPEN &hPen, HDC hdc) {
+void OnChangePenColor(HWND hWnd, HPEN &hPen, HDC hdc, int &width, COLORREF &penColor) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
-	if (ChooseColor(&chooseColor))
-	{
-		hPen = CreatePen(PS_SOLID, 2, chooseColor.rgbResult);
-		SelectObject(hdc, hPen);
+	if (ChooseColor(&chooseColor)) {
+		penColor = chooseColor.rgbResult;
 	}
+	hPen = CreatePen(PS_SOLID, width, penColor);
+	SelectObject(hdc, hPen);
 }
 
 void OnChangeFillColor(HWND hWnd, HBRUSH &hBrush, HDC hdc) {
@@ -46,6 +46,19 @@ void OnChangeFillColor(HWND hWnd, HBRUSH &hBrush, HDC hdc) {
 		hBrush = CreateSolidBrush(chooseColor.rgbResult);
 		SelectObject(hdc, hBrush);
 	}
+}
+
+void OnChangePenWidth(HPEN &hPen, int itemId, HDC hdc, int &width, COLORREF &penColor) {
+	switch (itemId)
+	{
+	case ID_WIDTH_1: width = 1; break;
+	case ID_WIDTH_2: width = 2; break;
+	case ID_WIDTH_3: width = 3; break;
+	case ID_WIDTH_4: width = 4; break;
+	case ID_WIDTH_5: width = 5; break;
+	}
+	hPen = CreatePen(PS_SOLID, width, penColor);
+	SelectObject(hdc, hPen);
 }
 
 void ClearHDC(HWND hWnd, HDC hdc) {
@@ -87,7 +100,8 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int &currentInstrument, HPEN &hPen, HBRUSH &hBrush) {
+void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, 
+	int &currentInstrument, HPEN &hPen, HBRUSH &hBrush, int &width, COLORREF &penColor) {
 	switch (itemId) {
 	case IDM_ABOUT:
 		DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -108,7 +122,7 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int 
 		Undo(hWnd, figures, hdc);
 		break; 
 	case ID_COLOR_PEN:
-		OnChangePenColor(hWnd, hPen, hdc);
+		OnChangePenColor(hWnd, hPen, hdc, width, penColor);
 		break;
 	case ID_COLOR_FILL:
 		OnChangeFillColor(hWnd, hBrush, hdc);
@@ -119,6 +133,13 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int 
 	case ID_INSTRUMENT_ELLIPSE:
 	case ID_INSTRUMENT_POLYGON:
 		currentInstrument = itemId;
+		break;
+	case ID_WIDTH_1:
+	case ID_WIDTH_2:
+	case ID_WIDTH_3:
+	case ID_WIDTH_4:
+	case ID_WIDTH_5:
+		OnChangePenWidth(hPen, itemId, hdc, width, penColor);
 	}
 }
 
@@ -150,7 +171,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static int currentInstrument = ID_INSTRUMENT_PENCIL;	
 	static POINT startPoint;
 	static Figure* currentFigure;
-	static HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
+	static int width = 1;
+	static COLORREF penColor = RGB(0, 0, 0);
+	static HPEN hPen = CreatePen(PS_SOLID, width, penColor);
 	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
 
 	switch (message)
@@ -161,7 +184,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SelectObject(hdc, hPen);
 		break;
 	case WM_COMMAND:
-		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument, hPen, hBrush);
+		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument, hPen, hBrush, width, penColor);
 		break;
 	case WM_PAINT:
 	{
