@@ -13,29 +13,7 @@ HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 
-//// menu / color dialog
-//static HPEN hPen;
-//static HBRUSH hBrush;
-//static COLORREF  crCustColor[16];
-//static HDC hCompatibleDC = 0;
-//static HDC hBitmapDC = 0;
-//static HDC hdc1;
-//static int width = 0;
-//
-//// line
-//HDC static hdc;
-//static int xBegin = 0, yBegin = 0;
-//static double scale;
-//static bool b, bText, flag, bPoly, bPolyline;
-//static int id;
-//RECT rect;
-//static HBITMAP hCompatibleBitmap, hBitmap;
-//static int f = 0;
-//TEXTMETRIC tm;
-//static string text;
-//static int cxChar, cyChar;
-//static int xT, yT;
-/////////////////////////
+
 
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
@@ -75,9 +53,9 @@ void OnChangeFillColor(HWND hWnd) {
 	}
 }
 
-void ClearHDC(HWND hWnd) {
+void ClearHDC(HWND hWnd, HDC hdc) {
 	RECT rect;
-	HDC hdc = GetDC(hWnd);
+//	HDC hdc = GetDC(hWnd);
 	GetClientRect(hWnd, &rect);
 	FillRect(hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
 }
@@ -85,6 +63,14 @@ void ClearHDC(HWND hWnd) {
 void DrawAllFigures(HDC hdc, vector<Figure*> figures) {
 	for each(Figure* figure in figures) {
 		(*figure).draw(hdc);
+	}
+}
+
+void Undo(HWND hWnd, vector<Figure*> &figures, HDC hdc) {
+	if (figures.size() > 0) {
+		figures.pop_back();
+		ClearHDC(hWnd, hdc);
+		DrawAllFigures(hdc, figures);
 	}
 }
 
@@ -107,7 +93,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-int OnMenuClick(HWND hWnd, WORD itemId) {
+void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int &currentInstrument) {
 	switch (itemId) {
 	case IDM_ABOUT:
 		DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -124,23 +110,21 @@ int OnMenuClick(HWND hWnd, WORD itemId) {
 	case ID_FILE_PRINT:
 		MessageBox(NULL, _T("print"), _T(""), NULL);
 		break;
-	/*case ID_EDIT_UNDO:
-		MessageBox(NULL, _T("undo"), _T(""), NULL);
-		break; */
+	case ID_EDIT_UNDO:
+		Undo(hWnd, figures, hdc);
+		break; 
 	case ID_COLOR_PEN:
 		OnChangePenColor(hWnd);
 		break;
 	case ID_COLOR_FILL:
 		OnChangeFillColor(hWnd);
 		break;
-	//case ID_INSTRUMENT_LINE:
-	//	return ID_INSTRUMENT_LINE;
-	//case ID_INSTRUMENT_RECTANGLE:
-	//	return ID_INSTRUMENT_RECTANGLE;
-	//case ID_INSTRUMENT_PENCIL:
-	//	return ID_INSTRUMENT_PENCIL;
-	default:
-		return itemId;
+	case ID_INSTRUMENT_LINE:
+	case ID_INSTRUMENT_RECTANGLE:
+	case ID_INSTRUMENT_PENCIL:
+	case ID_INSTRUMENT_ELLIPSE:
+	case ID_INSTRUMENT_POLYGON:
+		currentInstrument = itemId;
 	}
 }
 
@@ -166,10 +150,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  process messages in main window
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static vector<Figure*> figures;
 	static HDC hdc;
 	static bool paintNow = false;
-	static int currentInstrument;
-	static vector<Figure*> figures;
+	static int currentInstrument = ID_INSTRUMENT_PENCIL;	
 	static POINT startPoint;
 	static Figure* currentFigure;
 
@@ -180,13 +164,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		hdc = GetDC(hWnd);
 		break;
 	case WM_COMMAND:
-		currentInstrument = OnMenuClick(hWnd, LOWORD(wParam));
-		//undo is shit
-		if (currentInstrument == ID_EDIT_UNDO) {
-			figures.pop_back();
-			ClearHDC(hWnd);
-			DrawAllFigures(hdc, figures);
-		}
+		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument);
 		break;
 	case WM_PAINT:
 	{
@@ -194,41 +172,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		HDC hdc = BeginPaint(hWnd, &ps);
 		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
 		EndPaint(hWnd, &ps);
-//		vector<Figure*> figures;
-//		POINT point1; POINT point2;
-//
-//		RectangleFigure rect1;
-//		point1.x = 23; point1.y = 23;
-//		point2.x = 234; point2.y = 234;
-//		rect1.points.push_back(point1);
-//		rect1.points.push_back(point2);
-//		figures.push_back(&rect1);
-//
-//		LineFigure line1;
-//		point1.x = 23; point1.y = 23;
-//		point2.x = 234; point2.y = 234;
-//		line1.points.push_back(point1);
-//		line1.points.push_back(point2);
-//		figures.push_back(&line1);
-//
-//		PencilFigure pencil1;
-//		point1.x = 23; point1.y = 23;
-//		point2.x = 122; point2.y = 122;
-//		POINT point3; point3.x = 122; point3.y = 322;
-//		POINT point4; point4.x = 345; point4.y = 122;	
-//		pencil1.points.push_back(point1);
-//		pencil1.points.push_back(point2);
-//		pencil1.points.push_back(point3);
-//		pencil1.points.push_back(point4);
-//		figures.push_back(&pencil1);
-//
-//		/*for each(Figure* figure in figures) {
-//			(*figure).draw(hdc);
-//		}
-//*/
-//		DrawAllFigures(hdc, figures);
-		//EndPaint(hWnd, &ps);
-	//	DrawAllFigures(hdc, figures);
 		break;
 	}
 	case WM_MOUSEMOVE:
@@ -236,7 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			POINT point;
 			point.x = (short)LOWORD(lParam);
 			point.y = (short)HIWORD(lParam);
-			ClearHDC(hWnd);
+			ClearHDC(hWnd, hdc);
 			switch (currentInstrument)
 			{
 			case ID_INSTRUMENT_LINE:
@@ -244,14 +187,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_INSTRUMENT_ELLIPSE:
 			case ID_INSTRUMENT_POLYGON:
 				if (currentFigure->points.size() > 1)
-					currentFigure->points.pop_back();			
+					currentFigure->points.pop_back();
 				break;
 			}
 			currentFigure->points.push_back(point);
-			if (currentInstrument != 0) {
-				DrawAllFigures(hdc, figures);
-				currentFigure->draw(hdc);
-			}	
+			DrawAllFigures(hdc, figures);
+			currentFigure->draw(hdc);
 		}
 		break;
 	case WM_LBUTTONDOWN:
@@ -277,9 +218,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				currentFigure = new PolygonFigure();			
 			break;
 		}
-		if (currentInstrument != 0) {
-			currentFigure->points.push_back(startPoint);			
-		}
+		currentFigure->points.push_back(startPoint);			
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
 			currentFigure->draw(hdc);
 		}
