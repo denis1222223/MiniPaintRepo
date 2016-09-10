@@ -17,45 +17,39 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
-	//chooseColor.lStructSize = sizeof(CHOOSECOLOR);
-	//chooseColor.hInstance = NULL;
-	//chooseColor.hwndOwner = hWnd;
-	//chooseColor.lpCustColors = crCustColor;
-	//chooseColor.Flags = CC_RGBINIT | CC_FULLOPEN;
-	//chooseColor.lCustData = 0L;
-	//chooseColor.lpfnHook = NULL;
-	//chooseColor.rgbResult = RGB(0x80, 0x80, 0x80);
-	//chooseColor.lpTemplateName = NULL;
+	COLORREF  crCustColor[16];
+	chooseColor.lStructSize = sizeof(CHOOSECOLOR);
+	chooseColor.hInstance = NULL;
+	chooseColor.hwndOwner = hWnd;
+	chooseColor.lpCustColors = crCustColor;
+	chooseColor.Flags = CC_RGBINIT | CC_FULLOPEN;
+	chooseColor.lCustData = 0L;
+	chooseColor.lpfnHook = NULL;
+	chooseColor.rgbResult = RGB(0x80, 0x80, 0x80);
+	chooseColor.lpTemplateName = NULL;
 	return chooseColor;
 }
 
-void OnChangePenColor(HWND hWnd) {
+void OnChangePenColor(HWND hWnd, HPEN &hPen, HDC hdc) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
 	if (ChooseColor(&chooseColor))
 	{
-		//DeleteObject(hPen);
-		//hPen = CreatePen(PS_SOLID, width, chooseColor.rgbResult);
-		//DeleteObject(SelectObject(hCompatibleDC, hPen));
-		//DeleteObject(SelectObject(hBitmapDC, hPen));
-		//DeleteObject(SelectObject(hdc1, hPen));
+		hPen = CreatePen(PS_SOLID, 2, chooseColor.rgbResult);
+		SelectObject(hdc, hPen);
 	}
 }
 
-void OnChangeFillColor(HWND hWnd) {
+void OnChangeFillColor(HWND hWnd, HBRUSH &hBrush, HDC hdc) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
 	if (ChooseColor(&chooseColor))
 	{
-	/*	DeleteObject(hBrush);
 		hBrush = CreateSolidBrush(chooseColor.rgbResult);
-		DeleteObject(SelectObject(hCompatibleDC, hBrush));
-		DeleteObject(SelectObject(hBitmapDC, hBrush));
-		DeleteObject(SelectObject(hdc1, hBrush));*/
+		SelectObject(hdc, hBrush);
 	}
 }
 
 void ClearHDC(HWND hWnd, HDC hdc) {
 	RECT rect;
-//	HDC hdc = GetDC(hWnd);
 	GetClientRect(hWnd, &rect);
 	FillRect(hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
 }
@@ -93,7 +87,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int &currentInstrument) {
+void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int &currentInstrument, HPEN &hPen, HBRUSH &hBrush) {
 	switch (itemId) {
 	case IDM_ABOUT:
 		DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -114,10 +108,10 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, int 
 		Undo(hWnd, figures, hdc);
 		break; 
 	case ID_COLOR_PEN:
-		OnChangePenColor(hWnd);
+		OnChangePenColor(hWnd, hPen, hdc);
 		break;
 	case ID_COLOR_FILL:
-		OnChangeFillColor(hWnd);
+		OnChangeFillColor(hWnd, hBrush, hdc);
 		break;
 	case ID_INSTRUMENT_LINE:
 	case ID_INSTRUMENT_RECTANGLE:
@@ -156,15 +150,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static int currentInstrument = ID_INSTRUMENT_PENCIL;	
 	static POINT startPoint;
 	static Figure* currentFigure;
+	static HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 0, 0));
+	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
 
 	switch (message)
 	{
 	case WM_CREATE:
 		ShowWindow(hWnd, SW_NORMAL);
 		hdc = GetDC(hWnd);
+		SelectObject(hdc, hPen);
 		break;
 	case WM_COMMAND:
-		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument);
+		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument, hPen, hBrush);
 		break;
 	case WM_PAINT:
 	{
@@ -190,8 +187,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					currentFigure->points.pop_back();
 				break;
 			}
-			currentFigure->points.push_back(point);
+			currentFigure->points.push_back(point);		
 			DrawAllFigures(hdc, figures);
+			SelectObject(hdc, hPen);
+			SelectObject(hdc, hBrush);
 			currentFigure->draw(hdc);
 		}
 		break;
@@ -226,12 +225,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONUP:
 		paintNow = false;
 		if (currentInstrument != ID_INSTRUMENT_POLYGON) {
+			currentFigure->hPen = hPen;
+			currentFigure->hBrush = hBrush;
 			figures.push_back(currentFigure);
 			currentFigure = NULL;
 		}		
 		break;
 	case WM_LBUTTONDBLCLK:
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
+			currentFigure->hPen = hPen;
 			figures.push_back(currentFigure);
 			currentFigure = NULL;
 		}
