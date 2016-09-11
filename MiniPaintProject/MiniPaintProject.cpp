@@ -9,10 +9,10 @@
 #include <vector>
 using namespace std;
 
-HINSTANCE hInst;                               
-WCHAR szTitle[MAX_LOADSTRING];                  
-WCHAR szWindowClass[MAX_LOADSTRING];           
-
+HINSTANCE hInst;                          // current instance     
+WCHAR szTitle[MAX_LOADSTRING];            // The title bar text      
+WCHAR szWindowClass[MAX_LOADSTRING];      // the main window class name     
+           
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
 	COLORREF  crCustColor[16];
@@ -80,6 +80,72 @@ void Undo(HWND hWnd, vector<Figure*> &figures, HDC hdc) {
 	}
 }
 
+void OnFiguresMoved(vector<Figure*> &figures, POINT startPoint, POINT point) {
+	int valueX = point.x - startPoint.x;
+	int valueY = point.y - startPoint.y;
+	for each(Figure* figure in figures) {
+		for each(POINT p in figure->points) {
+			p.x += valueX;
+			p.y += valueY;
+		}
+	}
+}
+
+string GetFilepathDialog(HWND hWnd, bool save) {
+	static OPENFILENAME ofn;
+	static char fullpath[255], filename[256], dir[256];
+	ofn.lStructSize = sizeof(OPENFILENAME);
+	ofn.hwndOwner = hWnd;
+	ofn.hInstance = hInst; // дескриптор копии приложения
+	ofn.lpstrFilter = "Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrFile = fullpath;
+	ofn.nMaxFile = sizeof(fullpath);
+	ofn.lpstrFileTitle = filename;
+	ofn.nMaxFileTitle = sizeof(filename);
+	ofn.lpstrInitialDir = dir;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_EXPLORER;
+	if (save) {
+		ofn.lpstrTitle = "Save picture as...";
+		GetSaveFileName(&ofn);
+	}
+	else {
+		ofn.lpstrTitle = "Open picture";
+		GetOpenFileName(&ofn);
+	}
+	return fullpath;
+}
+
+void OpenPicture(HWND hWnd, HDC hdc) {
+	static string fullpath;
+	fullpath = GetFilepathDialog(hWnd, 0);
+	if (!fullpath.empty())
+	{
+		RECT rect;
+		HENHMETAFILE hEnhMtf;
+		GetClientRect(hWnd, &rect);
+		hEnhMtf = GetEnhMetaFile(fullpath.c_str());
+		PlayEnhMetaFile(hdc, hEnhMtf, &rect);
+	}
+}
+
+void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures) {
+	static string fullpath;
+	fullpath = GetFilepathDialog(hWnd, 1);
+	if (!fullpath.empty())
+	{
+		RECT rect;
+		HENHMETAFILE hEnhMtf;
+		HDC mtfHdc;
+		GetClientRect(hWnd, &rect);
+		fullpath += ".emf";
+		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), NULL, NULL);
+		DrawAllFigures(mtfHdc, figures);
+		hEnhMtf = CloseEnhMetaFile(mtfHdc);
+		DeleteEnhMetaFile(hEnhMtf);
+	}
+}
+
 // Aboutbox click handler.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -106,10 +172,10 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 		DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 		break;
 	case ID_FILE_OPEN:
-		MessageBox(NULL, _T("open"), _T(""), NULL);
+		OpenPicture(hWnd, hdc);
 		break;
 	case ID_FILE_SAVE:
-		MessageBox(NULL, _T("save"), _T(""), NULL);
+		SavePicture(hWnd, hdc, figures);
 		break;
 	case IDM_EXIT:
 		DestroyWindow(hWnd);
@@ -132,6 +198,8 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 	case ID_INSTRUMENT_ELLIPSE:
 	case ID_INSTRUMENT_POLYGON:
 	case ID_INSTRUMENT_TEXT:
+	case ID_EDIT_MOVE:
+	case ID_EDIT_ZOOM:
 		currentInstrument = itemId;
 		break;
 	case ID_WIDTH_1:
@@ -175,6 +243,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static COLORREF penColor = RGB(0, 0, 0);
 	static HPEN hPen = CreatePen(PS_SOLID, width, penColor);
 	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
+	static double scale = 1;
 
 	switch (message)
 	{
@@ -189,7 +258,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
+		HDC hdc2 = BeginPaint(hWnd, &ps);
+		HDC          hdcMem;
+		HBITMAP      hbmMem;
+		HANDLE       hOld;
+		static HDC hBitmapDC = 0;
+		RECT rect;
+		if (currentInstrument == ID_EDIT_ZOOM) {
+			GetClientRect(hWnd, &rect);
+			hdcMem = CreateCompatibleDC(hdc);
+			hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+			hOld = SelectObject(hdcMem, hbmMem);
+			FillRect(hdcMem, &rect, WHITE_BRUSH);
+			StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);
+			SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
+			SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
+			Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+			BitBlt(hdc2, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+			SelectObject(hdcMem, hOld);
+			DeleteObject(hbmMem);
+			DeleteDC(hdcMem);
+			
+		}
+
 		EndPaint(hWnd, &ps);
 		break;
 	}
@@ -208,6 +300,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				if (currentFigure->points.size() > 1)
 					currentFigure->points.pop_back();
 				break;
+			/*case ID_EDIT_MOVE:
+				OnFiguresMoved(figures, startPoint, point);
+				DrawAllFigures(hdc, figures);
+				return 0;*/
 			}
 			currentFigure->points.push_back(point);		
 			DrawAllFigures(hdc, figures);
@@ -243,7 +339,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure = new TextFigure();
 			break;
 		}
-		currentFigure->points.push_back(startPoint);			
+		//if (currentInstrument != ID_EDIT_MOVE)
+			currentFigure->points.push_back(startPoint);	
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
 			currentFigure->draw(hdc);
 		}
@@ -264,9 +361,85 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure = NULL;
 		}
 		break;
+	case WM_MOUSEWHEEL:
+		
+		if (currentInstrument == ID_EDIT_ZOOM) {
+			HDC          hdcMem;
+			HBITMAP      hbmMem;
+			HANDLE       hOld;
+			static HDC hBitmapDC = 0;
+			RECT rect;
+			if ((GET_WHEEL_DELTA_WPARAM(wParam) > 0) && (scale < 2)) {
+				scale += 0.3;
+
+			/*	RECT rect;
+				GetClientRect(hWnd, &rect);
+				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
+				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+				SetStretchBltMode(hdc, BLACKONWHITE);
+				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+					hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
+
+				//GetClientRect(hWnd, &rect);
+				//hdcMem = CreateCompatibleDC(hdc);
+				//hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+				//hOld = SelectObject(hdcMem, hbmMem);
+				//FillRect(hdcMem, &rect, WHITE_BRUSH);
+				//StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+				//	hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
+				//SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
+				//SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
+				////Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+				//BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+				//SelectObject(hdcMem, hOld);
+				//DeleteObject(hbmMem);
+				//DeleteDC(hdcMem);
+			}
+				
+			if ((GET_WHEEL_DELTA_WPARAM(wParam) < 0) && (scale > 0.3)) {
+				scale -= 0.3;
+
+			/*	RECT rect;
+				GetClientRect(hWnd, &rect);
+				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
+				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+				SetStretchBltMode(hdc, BLACKONWHITE);
+				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+					hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
+
+				/*GetClientRect(hWnd, &rect);
+				hdcMem = CreateCompatibleDC(hdc);
+				hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+				hOld = SelectObject(hdcMem, hbmMem);
+				FillRect(hdcMem, &rect, WHITE_BRUSH);
+				StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+					hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
+				SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
+				SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
+				Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+				BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+				SelectObject(hdcMem, hOld);
+				DeleteObject(hbmMem);
+				DeleteDC(hdcMem);*/
+			}
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+		}
+		break;
 	case  WM_CHAR:
+		
+		if (currentInstrument == ID_EDIT_MOVE) {
+			for each(Figure* figure in figures) {
+				for each(POINT p in figure->points) {
+					p.x += 5;
+					p.y += 5;
+				}
+			}
+			ClearHDC(hWnd, hdc);
+			DrawAllFigures(hdc, figures);
+		}
 		if ((currentInstrument == ID_INSTRUMENT_TEXT) && (!currentFigure->points.empty()))
-		{
+		{		
 			char c = (char)wParam;
 			if (c == VK_RETURN) {
 				figures.push_back(currentFigure);
