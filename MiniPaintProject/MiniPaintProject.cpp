@@ -12,7 +12,8 @@ using namespace std;
 HINSTANCE hInst;                          // current instance     
 WCHAR szTitle[MAX_LOADSTRING];            // The title bar text      
 WCHAR szWindowClass[MAX_LOADSTRING];      // the main window class name     
-           
+HENHMETAFILE hEnhMtf;
+
 CHOOSECOLOR GetColorDialog(HWND hWnd) {
 	CHOOSECOLOR chooseColor = { 0 };
 	COLORREF  crCustColor[16];
@@ -64,6 +65,7 @@ void ClearHDC(HWND hWnd, HDC hdc) {
 	RECT rect;
 	GetClientRect(hWnd, &rect);
 	FillRect(hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+	PlayEnhMetaFile(hdc, hEnhMtf, &rect);
 }
 
 void DrawAllFigures(HDC hdc, vector<Figure*> figures) {
@@ -122,25 +124,31 @@ void OpenPicture(HWND hWnd, HDC hdc) {
 	if (!fullpath.empty())
 	{
 		RECT rect;
-		HENHMETAFILE hEnhMtf;
+		
 		GetClientRect(hWnd, &rect);
 		hEnhMtf = GetEnhMetaFile(fullpath.c_str());
 		PlayEnhMetaFile(hdc, hEnhMtf, &rect);
 	}
 }
 
-void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures) {
+void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures, RECT rect) {
 	static string fullpath;
 	fullpath = GetFilepathDialog(hWnd, 1);
 	if (!fullpath.empty())
 	{
-		RECT rect;
-		HENHMETAFILE hEnhMtf;
+	//	HENHMETAFILE hEnhMtf;
 		HDC mtfHdc;
-		GetClientRect(hWnd, &rect);
 		fullpath += ".emf";
-		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), NULL, NULL);
-		DrawAllFigures(mtfHdc, figures);
+		///
+		/*RECT rect1;
+		rect1.top = 0;
+		rect1.left = 0;
+		rect1.bottom = 100;
+		rect1.right=100;*/
+		///
+		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), &rect, NULL);
+	//	PlayEnhMetaFile(mtfHdc, hEnhMtf, &rect);///
+		//DrawAllFigures(mtfHdc, figures);
 		hEnhMtf = CloseEnhMetaFile(mtfHdc);
 		DeleteEnhMetaFile(hEnhMtf);
 	}
@@ -175,13 +183,12 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 		OpenPicture(hWnd, hdc);
 		break;
 	case ID_FILE_SAVE:
-		SavePicture(hWnd, hdc, figures);
+		RECT rect;
+		GetClientRect(hWnd, &rect);
+		SavePicture(hWnd, hdc, figures, rect);
 		break;
 	case IDM_EXIT:
 		DestroyWindow(hWnd);
-		break;
-	case ID_FILE_PRINT:
-		MessageBox(NULL, _T("print"), _T(""), NULL);
 		break;
 	case ID_EDIT_UNDO:
 		Undo(hWnd, figures, hdc);
@@ -200,6 +207,7 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 	case ID_INSTRUMENT_TEXT:
 	case ID_EDIT_MOVE:
 	case ID_EDIT_ZOOM:
+	case ID_FILE_PRINT:
 		currentInstrument = itemId;
 		break;
 	case ID_WIDTH_1:
@@ -244,6 +252,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static HPEN hPen = CreatePen(PS_SOLID, width, penColor);
 	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
 	static double scale = 1;
+	static bool print = false;
 
 	switch (message)
 	{
@@ -251,14 +260,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		ShowWindow(hWnd, SW_NORMAL);
 		hdc = GetDC(hWnd);
 		SelectObject(hdc, hPen);
+		RegisterHotKey(hWnd, ID_FILE_OPEN, MOD_CONTROL, 'O');
+		RegisterHotKey(hWnd, ID_FILE_SAVE, MOD_CONTROL, 'S');
+		RegisterHotKey(hWnd, ID_FILE_PRINT, MOD_CONTROL, 'P');
 		break;
 	case WM_COMMAND:
+	case WM_HOTKEY:
 		OnMenuClick(hWnd, LOWORD(wParam), figures, hdc, currentInstrument, hPen, hBrush, width, penColor);
 		break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
 		HDC hdc2 = BeginPaint(hWnd, &ps);
+		//////////////////////////
 		HDC          hdcMem;
 		HBITMAP      hbmMem;
 		HANDLE       hOld;
@@ -281,7 +295,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DeleteDC(hdcMem);
 			
 		}
-
+		//////////////////////////////////
 		EndPaint(hWnd, &ps);
 		break;
 	}
@@ -297,6 +311,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_INSTRUMENT_RECTANGLE:
 			case ID_INSTRUMENT_ELLIPSE:
 			case ID_INSTRUMENT_POLYGON:
+			case ID_FILE_PRINT:
 				if (currentFigure->points.size() > 1)
 					currentFigure->points.pop_back();
 				break;
@@ -325,6 +340,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure = new PencilFigure();
 			break;
 		case ID_INSTRUMENT_RECTANGLE:
+		case ID_FILE_PRINT:
 			currentFigure = new RectangleFigure();
 			break;
 		case ID_INSTRUMENT_ELLIPSE:
@@ -339,7 +355,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure = new TextFigure();
 			break;
 		}
-		//if (currentInstrument != ID_EDIT_MOVE)
 			currentFigure->points.push_back(startPoint);	
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
 			currentFigure->draw(hdc);
@@ -347,7 +362,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_LBUTTONUP:
 		paintNow = false;
-		if ((currentInstrument != ID_INSTRUMENT_POLYGON) && (currentInstrument != ID_INSTRUMENT_TEXT)) {
+		if (currentInstrument == ID_FILE_PRINT) {
+			RECT rect;
+			rect.left = currentFigure->points[0].x;
+			rect.bottom = currentFigure->points[1].y;
+			rect.top = currentFigure->points[0].y;
+			rect.right = currentFigure->points[1].x;
+			SavePicture(hWnd, hdc,figures, rect);
+			break;
+		}
+		if ((currentInstrument != ID_INSTRUMENT_POLYGON) && (currentInstrument != ID_INSTRUMENT_TEXT) && (currentFigure != NULL)) {
 			currentFigure->hPen = hPen;
 			currentFigure->hBrush = hBrush;
 			figures.push_back(currentFigure);
