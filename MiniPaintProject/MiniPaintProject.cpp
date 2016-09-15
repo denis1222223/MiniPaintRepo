@@ -98,7 +98,7 @@ string GetFilepathDialog(HWND hWnd, bool save) {
 	static char fullpath[255], filename[256], dir[256];
 	ofn.lStructSize = sizeof(OPENFILENAME);
 	ofn.hwndOwner = hWnd;
-	ofn.hInstance = hInst; // дескриптор копии приложения
+	ofn.hInstance = hInst;
 	ofn.lpstrFilter = "Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 	ofn.nFilterIndex = 1;
 	ofn.lpstrFile = fullpath;
@@ -124,7 +124,6 @@ void OpenPicture(HWND hWnd, HDC hdc) {
 	if (!fullpath.empty())
 	{
 		RECT rect;
-
 		GetClientRect(hWnd, &rect);
 		hEnhMtf = GetEnhMetaFile(fullpath.c_str());
 		PlayEnhMetaFile(hdc, hEnhMtf, &rect);
@@ -136,16 +135,8 @@ void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures, RECT rect) {
 	fullpath = GetFilepathDialog(hWnd, 1);
 	if (!fullpath.empty())
 	{
-		//	HENHMETAFILE hEnhMtf;
 		HDC mtfHdc;
 		fullpath += ".emf";
-		///
-		/*RECT rect1;
-		rect1.top = 0;
-		rect1.left = 0;
-		rect1.bottom = 100;
-		rect1.right=100;*/
-		///
 		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), NULL, NULL);
 		PlayEnhMetaFile(mtfHdc, hEnhMtf, NULL);
 		DrawAllFigures(mtfHdc, figures);
@@ -250,7 +241,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static int width = 1;
 	static COLORREF penColor = RGB(0, 0, 0);
 	static HPEN hPen = CreatePen(PS_SOLID, width, penColor);
-	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
+	static HBRUSH hBrush = (HBRUSH)GetStockObject(HOLLOW_BRUSH);   // = CreateSolidBrush(RGB(255, 255, 255));
 	static double scale = 1;
 	static bool print = false;
 	static POINT currentPoint;
@@ -270,17 +261,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
+		
+		XFORM xForm;
+		xForm.eM11 = xForm.eM22 = scale;
+		xForm.eM12 = xForm.eM21 = xForm.eDx = xForm.eDy = 0;
+		SetGraphicsMode(hdc, GM_ADVANCED);
+		SetWorldTransform(hdc, &xForm);
+
+		HDC hdc2 = CreateCompatibleDC(hdc);
 
 		if (paintNow)
-		{
-			//////////////////////////////////////////////////////////
-			HDC hdc2 = CreateCompatibleDC(hdc);
+		{		
 			RECT rect;
 			GetWindowRect(hWnd, &rect);
 			HBITMAP hbm = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 			HANDLE hold = SelectObject(hdc2, hbm);
-			ClearHDC(hWnd, hdc2);
-			/////////////////////////////////////////////////////////////////
+			ClearHDC(hWnd, hdc2);	
+
+			DrawAllFigures(hdc2, figures);
+			if (currentFigure != NULL) {
+				currentFigure->hPen = hPen;
+				currentFigure->hBrush = hBrush;
+				currentFigure->draw(hdc2);
+			}
+
+			BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdc2, 0, 0, SRCCOPY);
+			SelectObject(hdc2, hold);
+			DeleteObject(hbm);
+			DeleteDC(hdc2);
+			ReleaseDC(hWnd, hdc);
+		}
+		else {
+			DrawAllFigures(hdc, figures);
+		}
+
+		EndPaint(hWnd, &ps);
+		break;
+	}
+	case WM_MOUSEMOVE:
+		if (paintNow)
+		{
+			int x = currentPoint.x - (short)LOWORD(lParam) / scale;
+			int y = currentPoint.y - (short)HIWORD(lParam) / scale;
+			currentPoint.x = (short)LOWORD(lParam) / scale;
+			currentPoint.y = (short)HIWORD(lParam) / scale;
+
 			switch (currentInstrument)
 			{
 			case ID_INSTRUMENT_LINE:
@@ -291,61 +316,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				if (currentFigure->points.size() > 1)
 					currentFigure->points.pop_back();
 				break;
+			case ID_EDIT_MOVE:
+				for each(Figure* figure in figures) {
+					figure->pan(x, y);
+				}
+				break;
 			}
-			currentFigure->points.push_back(currentPoint);
-			DrawAllFigures(hdc2, figures);
-			SelectObject(hdc2, hPen);
-			SelectObject(hdc2, hBrush);
-			currentFigure->draw(hdc2);
-
-			/////////////////////////////////////
-			BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdc2, 0, 0, SRCCOPY);
-			SelectObject(hdc2, hold);
-			DeleteObject(hbm);
-			DeleteDC(hdc2);
-			ReleaseDC(hWnd, hdc);
-			/////////////////////////////////////
-		}
-
-		//////////////////////////
-		/*HDC          hdcMem;
-		HBITMAP      hbmMem;
-		HANDLE       hOld;
-		static HDC hBitmapDC = 0;
-		RECT rect;
-		if (currentInstrument == ID_EDIT_ZOOM) {
-		GetClientRect(hWnd, &rect);
-		hdcMem = CreateCompatibleDC(hdc);
-		hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-		hOld = SelectObject(hdcMem, hbmMem);
-		FillRect(hdcMem, &rect, WHITE_BRUSH);
-		StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-		hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);
-		SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
-		SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
-		Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-		BitBlt(hdc2, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
-		SelectObject(hdcMem, hOld);
-		DeleteObject(hbmMem);
-		DeleteDC(hdcMem);
-
-		}*/
-		//////////////////////////////////
-		EndPaint(hWnd, &ps);
-		break;
-	}
-	case WM_MOUSEMOVE:
-		if (paintNow)
-		{
-			currentPoint.x = (short)LOWORD(lParam);
-			currentPoint.y = (short)HIWORD(lParam);
+			
+			if (currentFigure != NULL)
+				currentFigure->points.push_back(currentPoint);
+			
 			InvalidateRect(hWnd, NULL, false);
 		}
 		break;
 	case WM_LBUTTONDOWN:
 		paintNow = true;
-		startPoint.x = (short)LOWORD(lParam);
-		startPoint.y = (short)HIWORD(lParam);
+		startPoint.x = (short)LOWORD(lParam) / scale;
+		startPoint.y = (short)HIWORD(lParam) / scale;
 		switch (currentInstrument)
 		{
 		case ID_INSTRUMENT_LINE:
@@ -366,11 +353,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				currentFigure = new PolygonFigure();
 			break;
 		case ID_INSTRUMENT_TEXT:
-			paintNow = false;
+			//paintNow = false;
 			currentFigure = new TextFigure();
 			break;
+		case ID_EDIT_MOVE: 
+			break;
+		default: 
+			paintNow = false;
 		}
-		currentFigure->points.push_back(startPoint);
+		if (paintNow) {
+			if (currentFigure != NULL)
+			currentFigure->points.push_back(startPoint);
+		}
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
 			currentFigure->draw(hdc);
 		}
@@ -401,82 +395,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_MOUSEWHEEL:
-
 		if (currentInstrument == ID_EDIT_ZOOM) {
-			HDC          hdcMem;
-			HBITMAP      hbmMem;
-			HANDLE       hOld;
-			static HDC hBitmapDC = 0;
-			RECT rect;
 			if ((GET_WHEEL_DELTA_WPARAM(wParam) > 0) && (scale < 2)) {
-				scale += 0.3;
-
-				/*	RECT rect;
-				GetClientRect(hWnd, &rect);
-				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
-				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-				SetStretchBltMode(hdc, BLACKONWHITE);
-				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
-
-				//GetClientRect(hWnd, &rect);
-				//hdcMem = CreateCompatibleDC(hdc);
-				//hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-				//hOld = SelectObject(hdcMem, hbmMem);
-				//FillRect(hdcMem, &rect, WHITE_BRUSH);
-				//StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-				//	hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
-				//SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
-				//SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
-				////Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-				//BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
-				//SelectObject(hdcMem, hOld);
-				//DeleteObject(hbmMem);
-				//DeleteDC(hdcMem);
+				scale += 0.1;
 			}
-
-			if ((GET_WHEEL_DELTA_WPARAM(wParam) < 0) && (scale > 0.3)) {
-				scale -= 0.3;
-
-				/*	RECT rect;
-				GetClientRect(hWnd, &rect);
-				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
-				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-				SetStretchBltMode(hdc, BLACKONWHITE);
-				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
-
-				/*GetClientRect(hWnd, &rect);
-				hdcMem = CreateCompatibleDC(hdc);
-				hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-				hOld = SelectObject(hdcMem, hbmMem);
-				FillRect(hdcMem, &rect, WHITE_BRUSH);
-				StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-				hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
-				SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
-				SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
-				Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-				BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
-				SelectObject(hdcMem, hOld);
-				DeleteObject(hbmMem);
-				DeleteDC(hdcMem);*/
+			if ((GET_WHEEL_DELTA_WPARAM(wParam) < 0) && (scale > 1)) {
+				scale -= 0.1;
 			}
-			InvalidateRect(hWnd, NULL, FALSE);
+			InvalidateRect(hWnd, NULL, TRUE);
 			UpdateWindow(hWnd);
 		}
 		break;
 	case  WM_CHAR:
-
-		if (currentInstrument == ID_EDIT_MOVE) {
-			for each(Figure* figure in figures) {
-				for each(POINT p in figure->points) {
-					p.x += 5;
-					p.y += 5;
-				}
-			}
-			ClearHDC(hWnd, hdc);
-			DrawAllFigures(hdc, figures);
-		}
 		if ((currentInstrument == ID_INSTRUMENT_TEXT) && (!currentFigure->points.empty()))
 		{
 			char c = (char)wParam;

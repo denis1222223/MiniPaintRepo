@@ -13,6 +13,12 @@ public:
 	HBRUSH hBrush;
 	vector<POINT> points;
 	void virtual draw (HDC &hdc) = 0;
+	void pan(int x, int y) {
+		for (int i = 0; i < points.size(); i++) {
+			points[i].x -= x;
+			points[i].y -= y;
+		}
+	}
 };
 
 class LineFigure : public Figure {
