@@ -31,7 +31,7 @@ CHOOSECOLOR GetColorDialog(HWND hWnd) {
 
 void OnChangePenColor(HWND hWnd, HPEN &hPen, HDC hdc, int &width, COLORREF &penColor) {
 	CHOOSECOLOR chooseColor = GetColorDialog(hWnd);
-	if (ChooseColor(&chooseColor)) 
+	if (ChooseColor(&chooseColor))
 	{
 		penColor = chooseColor.rgbResult;
 	}
@@ -124,7 +124,7 @@ void OpenPicture(HWND hWnd, HDC hdc) {
 	if (!fullpath.empty())
 	{
 		RECT rect;
-		
+
 		GetClientRect(hWnd, &rect);
 		hEnhMtf = GetEnhMetaFile(fullpath.c_str());
 		PlayEnhMetaFile(hdc, hEnhMtf, &rect);
@@ -136,7 +136,7 @@ void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures, RECT rect) {
 	fullpath = GetFilepathDialog(hWnd, 1);
 	if (!fullpath.empty())
 	{
-	//	HENHMETAFILE hEnhMtf;
+		//	HENHMETAFILE hEnhMtf;
 		HDC mtfHdc;
 		fullpath += ".emf";
 		///
@@ -146,9 +146,9 @@ void SavePicture(HWND hWnd, HDC hdc, vector<Figure*> &figures, RECT rect) {
 		rect1.bottom = 100;
 		rect1.right=100;*/
 		///
-		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), &rect, NULL);
-	//	PlayEnhMetaFile(mtfHdc, hEnhMtf, &rect);///
-		//DrawAllFigures(mtfHdc, figures);
+		mtfHdc = CreateEnhMetaFile(hdc, fullpath.c_str(), NULL, NULL);
+		PlayEnhMetaFile(mtfHdc, hEnhMtf, NULL);
+		DrawAllFigures(mtfHdc, figures);
 		hEnhMtf = CloseEnhMetaFile(mtfHdc);
 		DeleteEnhMetaFile(hEnhMtf);
 	}
@@ -173,7 +173,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc, 
+void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 	int &currentInstrument, HPEN &hPen, HBRUSH &hBrush, int &width, COLORREF &penColor) {
 	switch (itemId) {
 	case IDM_ABOUT:
@@ -192,7 +192,7 @@ void OnMenuClick(HWND hWnd, WORD itemId, vector<Figure*> &figures, HDC hdc,
 		break;
 	case ID_EDIT_UNDO:
 		Undo(hWnd, figures, hdc);
-		break; 
+		break;
 	case ID_COLOR_PEN:
 		OnChangePenColor(hWnd, hPen, hdc, width, penColor);
 		break;
@@ -244,7 +244,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static vector<Figure*> figures;
 	static HDC hdc;
 	static bool paintNow = false;
-	static int currentInstrument = ID_INSTRUMENT_PENCIL;	
+	static int currentInstrument = ID_INSTRUMENT_PENCIL;
 	static POINT startPoint;
 	static Figure* currentFigure;
 	static int width = 1;
@@ -253,6 +253,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
 	static double scale = 1;
 	static bool print = false;
+	static POINT currentPoint;
 
 	switch (message)
 	{
@@ -260,9 +261,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		ShowWindow(hWnd, SW_NORMAL);
 		hdc = GetDC(hWnd);
 		SelectObject(hdc, hPen);
-		RegisterHotKey(hWnd, ID_FILE_OPEN, MOD_CONTROL, 'O');
-		RegisterHotKey(hWnd, ID_FILE_SAVE, MOD_CONTROL, 'S');
-		RegisterHotKey(hWnd, ID_FILE_PRINT, MOD_CONTROL, 'P');
 		break;
 	case WM_COMMAND:
 	case WM_HOTKEY:
@@ -271,40 +269,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
-		HDC hdc2 = BeginPaint(hWnd, &ps);
-		//////////////////////////
-		HDC          hdcMem;
-		HBITMAP      hbmMem;
-		HANDLE       hOld;
-		static HDC hBitmapDC = 0;
-		RECT rect;
-		if (currentInstrument == ID_EDIT_ZOOM) {
-			GetClientRect(hWnd, &rect);
-			hdcMem = CreateCompatibleDC(hdc);
-			hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-			hOld = SelectObject(hdcMem, hbmMem);
-			FillRect(hdcMem, &rect, WHITE_BRUSH);
-			StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);
-			SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
-			SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
-			Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
-			BitBlt(hdc2, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
-			SelectObject(hdcMem, hOld);
-			DeleteObject(hbmMem);
-			DeleteDC(hdcMem);
-			
-		}
-		//////////////////////////////////
-		EndPaint(hWnd, &ps);
-		break;
-	}
-	case WM_MOUSEMOVE:
-		if (paintNow) {
-			POINT point;
-			point.x = (short)LOWORD(lParam);
-			point.y = (short)HIWORD(lParam);
-			ClearHDC(hWnd, hdc);
+		HDC hdc = BeginPaint(hWnd, &ps);
+
+		if (paintNow)
+		{
+			//////////////////////////////////////////////////////////
+			HDC hdc2 = CreateCompatibleDC(hdc);
+			RECT rect;
+			GetWindowRect(hWnd, &rect);
+			HBITMAP hbm = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+			HANDLE hold = SelectObject(hdc2, hbm);
+			ClearHDC(hWnd, hdc2);
+			/////////////////////////////////////////////////////////////////
 			switch (currentInstrument)
 			{
 			case ID_INSTRUMENT_LINE:
@@ -315,16 +291,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				if (currentFigure->points.size() > 1)
 					currentFigure->points.pop_back();
 				break;
-			/*case ID_EDIT_MOVE:
-				OnFiguresMoved(figures, startPoint, point);
-				DrawAllFigures(hdc, figures);
-				return 0;*/
 			}
-			currentFigure->points.push_back(point);		
-			DrawAllFigures(hdc, figures);
-			SelectObject(hdc, hPen);
-			SelectObject(hdc, hBrush);
-			currentFigure->draw(hdc);
+			currentFigure->points.push_back(currentPoint);
+			DrawAllFigures(hdc2, figures);
+			SelectObject(hdc2, hPen);
+			SelectObject(hdc2, hBrush);
+			currentFigure->draw(hdc2);
+
+			/////////////////////////////////////
+			BitBlt(hdc, 0, 0, rect.right, rect.bottom, hdc2, 0, 0, SRCCOPY);
+			SelectObject(hdc2, hold);
+			DeleteObject(hbm);
+			DeleteDC(hdc2);
+			ReleaseDC(hWnd, hdc);
+			/////////////////////////////////////
+		}
+
+		//////////////////////////
+		/*HDC          hdcMem;
+		HBITMAP      hbmMem;
+		HANDLE       hOld;
+		static HDC hBitmapDC = 0;
+		RECT rect;
+		if (currentInstrument == ID_EDIT_ZOOM) {
+		GetClientRect(hWnd, &rect);
+		hdcMem = CreateCompatibleDC(hdc);
+		hbmMem = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		hOld = SelectObject(hdcMem, hbmMem);
+		FillRect(hdcMem, &rect, WHITE_BRUSH);
+		StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+		hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);
+		SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
+		SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
+		Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+		BitBlt(hdc2, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+		SelectObject(hdcMem, hOld);
+		DeleteObject(hbmMem);
+		DeleteDC(hdcMem);
+
+		}*/
+		//////////////////////////////////
+		EndPaint(hWnd, &ps);
+		break;
+	}
+	case WM_MOUSEMOVE:
+		if (paintNow)
+		{
+			currentPoint.x = (short)LOWORD(lParam);
+			currentPoint.y = (short)HIWORD(lParam);
+			InvalidateRect(hWnd, NULL, false);
 		}
 		break;
 	case WM_LBUTTONDOWN:
@@ -348,14 +363,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case ID_INSTRUMENT_POLYGON:
 			if (currentFigure == NULL)
-				currentFigure = new PolygonFigure();			
+				currentFigure = new PolygonFigure();
 			break;
-		case ID_INSTRUMENT_TEXT:	
+		case ID_INSTRUMENT_TEXT:
 			paintNow = false;
 			currentFigure = new TextFigure();
 			break;
 		}
-			currentFigure->points.push_back(startPoint);	
+		currentFigure->points.push_back(startPoint);
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
 			currentFigure->draw(hdc);
 		}
@@ -368,7 +383,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			rect.bottom = currentFigure->points[1].y;
 			rect.top = currentFigure->points[0].y;
 			rect.right = currentFigure->points[1].x;
-			SavePicture(hWnd, hdc,figures, rect);
+			SavePicture(hWnd, hdc, figures, rect);
 			break;
 		}
 		if ((currentInstrument != ID_INSTRUMENT_POLYGON) && (currentInstrument != ID_INSTRUMENT_TEXT) && (currentFigure != NULL)) {
@@ -376,7 +391,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			currentFigure->hBrush = hBrush;
 			figures.push_back(currentFigure);
 			currentFigure = NULL;
-		}		
+		}
 		break;
 	case WM_LBUTTONDBLCLK:
 		if (currentInstrument == ID_INSTRUMENT_POLYGON) {
@@ -386,7 +401,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_MOUSEWHEEL:
-		
+
 		if (currentInstrument == ID_EDIT_ZOOM) {
 			HDC          hdcMem;
 			HBITMAP      hbmMem;
@@ -396,13 +411,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if ((GET_WHEEL_DELTA_WPARAM(wParam) > 0) && (scale < 2)) {
 				scale += 0.3;
 
-			/*	RECT rect;
+				/*	RECT rect;
 				GetClientRect(hWnd, &rect);
 				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
 				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
 				SetStretchBltMode(hdc, BLACKONWHITE);
 				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-					hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
+				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
 
 				//GetClientRect(hWnd, &rect);
 				//hdcMem = CreateCompatibleDC(hdc);
@@ -419,17 +434,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				//DeleteObject(hbmMem);
 				//DeleteDC(hdcMem);
 			}
-				
+
 			if ((GET_WHEEL_DELTA_WPARAM(wParam) < 0) && (scale > 0.3)) {
 				scale -= 0.3;
 
-			/*	RECT rect;
+				/*	RECT rect;
 				GetClientRect(hWnd, &rect);
 				SelectObject(hdc, (HBRUSH)GetStockObject(NULL_BRUSH));
 				Rectangle(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
 				SetStretchBltMode(hdc, BLACKONWHITE);
 				StretchBlt(hdc, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-					hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
+				hdc, 0, 0, rect.right, rect.bottom, SRCCOPY);*/
 
 				/*GetClientRect(hWnd, &rect);
 				hdcMem = CreateCompatibleDC(hdc);
@@ -437,7 +452,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				hOld = SelectObject(hdcMem, hbmMem);
 				FillRect(hdcMem, &rect, WHITE_BRUSH);
 				StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
-					hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
+				hBitmapDC, 0, 0, rect.right, rect.bottom, SRCCOPY);
 				SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
 				SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
 				Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
@@ -451,7 +466,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case  WM_CHAR:
-		
+
 		if (currentInstrument == ID_EDIT_MOVE) {
 			for each(Figure* figure in figures) {
 				for each(POINT p in figure->points) {
@@ -463,12 +478,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DrawAllFigures(hdc, figures);
 		}
 		if ((currentInstrument == ID_INSTRUMENT_TEXT) && (!currentFigure->points.empty()))
-		{		
+		{
 			char c = (char)wParam;
 			if (c == VK_RETURN) {
 				figures.push_back(currentFigure);
 				break;
-			}			
+			}
 			((TextFigure*)currentFigure)->text += c;
 			currentFigure->draw(hdc);
 		}
@@ -505,36 +520,36 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
+	_In_opt_ HINSTANCE hPrevInstance,
+	_In_ LPWSTR    lpCmdLine,
+	_In_ int       nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
 
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_MINIPAINTPROJECT, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
+	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDC_MINIPAINTPROJECT, szWindowClass, MAX_LOADSTRING);
+	MyRegisterClass(hInstance);
 
-    // Execute application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
+	// Execute application initialization:
+	if (!InitInstance(hInstance, nCmdShow))
+	{
+		return FALSE;
+	}
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_MINIPAINTPROJECT));
+	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_MINIPAINTPROJECT));
 
-    MSG msg;
+	MSG msg;
 
-    // main message cycle:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
+	// main message cycle:
+	while (GetMessage(&msg, nullptr, 0, 0))
+	{
+		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
 
-    return (int) msg.wParam;
+	return (int)msg.wParam;
 }
